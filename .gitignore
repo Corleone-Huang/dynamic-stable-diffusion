@@ -1,0 +1,9 @@
+/data/mscoco
+/models/
+/logs/
+/figs/
+/data/
+/outputs/
+/assets/
+
+*.ckpt

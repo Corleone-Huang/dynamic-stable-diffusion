@@ -345,8 +345,8 @@ class DDPM(pl.LightningModule):
         self.log_dict(loss_dict, prog_bar=True,
                       logger=True, on_step=True, on_epoch=True)
 
-        self.log("global_step", self.global_step,
-                 prog_bar=True, logger=True, on_step=True, on_epoch=False)
+        # self.log("global_step", self.global_step,
+        #          prog_bar=True, logger=True, on_step=True, on_epoch=False, batch_size=batch_size)
 
         if self.use_scheduler:
             lr = self.optimizers().param_groups[0]['lr']
@@ -475,7 +475,7 @@ class LatentDiffusion(DDPM):
 
     @rank_zero_only
     @torch.no_grad()
-    def on_train_batch_start(self, batch, batch_idx, dataloader_idx):
+    def on_train_batch_start(self, batch, batch_idx):
         # only for very first batch
         if self.scale_by_std and self.current_epoch == 0 and self.global_step == 0 and batch_idx == 0 and not self.restarted_from_ckpt:
             assert self.scale_factor == 1., 'rather not use custom rescaling and std-rescaling simultaneously'

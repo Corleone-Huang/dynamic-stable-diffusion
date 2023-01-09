@@ -12,6 +12,8 @@ dependencies:
   - pip:
     - albumentations==0.4.3
     - diffusers
+    - seaborn
+    - matplotlib
     - opencv-python==4.1.2.30
     - pudb==2019.2
     - invisible-watermark

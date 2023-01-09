@@ -20,6 +20,9 @@ from pytorch_lightning.utilities import rank_zero_info
 from ldm.data.base import Txt2ImgIterableBaseDataset
 from ldm.util import instantiate_from_config
 
+import pytz
+Shanghai = pytz.timezone("Asia/Shanghai")
+now = datetime.datetime.now().astimezone(Shanghai).strftime("%m-%dT%H-%M-%S")
 
 def get_parser(**parser_kwargs):
     def str2bool(v):
@@ -95,7 +98,7 @@ def get_parser(**parser_kwargs):
         "-s",
         "--seed",
         type=int,
-        default=23,
+        default=2023,
         help="seed for seed_everything",
     )
     parser.add_argument(
@@ -116,9 +119,14 @@ def get_parser(**parser_kwargs):
         "--scale_lr",
         type=str2bool,
         nargs="?",
-        const=True,
-        default=True,
+        default=False,
         help="scale base-lr by ngpu * batch_size * n_accumulate",
+    )
+    parser.add_argument(
+        "--logtype",
+        type=str,
+        default="wandb",
+        help="using wandb or tensorboard to log",
     )
     return parser
 
@@ -253,6 +261,12 @@ class SetupCallback(Callback):
             print("Summoning checkpoint.")
             ckpt_path = os.path.join(self.ckptdir, "last.ckpt")
             trainer.save_checkpoint(ckpt_path)
+    
+    def on_exception(trainer, pl_module):
+        if trainer.global_rank == 0:
+            print("Summoning checkpoint.")
+            ckpt_path = os.path.join(self.ckptdir, "last.ckpt")
+            trainer.save_checkpoint(ckpt_path)
 
     def on_pretrain_routine_start(self, trainer, pl_module):
         if trainer.global_rank == 0:
@@ -288,7 +302,7 @@ class SetupCallback(Callback):
 
 class ImageLogger(Callback):
     def __init__(self, batch_frequency, max_images, clamp=True, increase_log_steps=True,
-                 rescale=True, disabled=False, log_on_batch_idx=False, log_first_step=False,
+                 rescale=True, disabled=False, log_on_batch_idx=False, log_first_step=True,
                  log_images_kwargs=None):
         super().__init__()
         self.rescale = rescale
@@ -318,8 +332,7 @@ class ImageLogger(Callback):
                 global_step=pl_module.global_step)
 
     @rank_zero_only
-    def log_local(self, save_dir, split, images,
-                  global_step, current_epoch, batch_idx):
+    def log_local(self, save_dir, split, images, global_step, current_epoch, batch_idx):
         root = os.path.join(save_dir, "images", split)
         for k in images:
             grid = torchvision.utils.make_grid(images[k], nrow=4)
@@ -380,11 +393,11 @@ class ImageLogger(Callback):
             return True
         return False
 
-    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, *kwargs):
         if not self.disabled and (pl_module.global_step > 0 or self.log_first_step):
             self.log_img(pl_module, batch, batch_idx, split="train")
 
-    def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+    def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, *kwargs):
         if not self.disabled and pl_module.global_step > 0:
             self.log_img(pl_module, batch, batch_idx, split="val")
         if hasattr(pl_module, 'calibrate_grad_norm'):
@@ -457,7 +470,7 @@ if __name__ == "__main__":
     #           params:
     #               key: value
 
-    now = datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+    # now = datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
 
     # add cwd for convenience and to make classes in this file available when
     # running as `python main.py`
@@ -518,11 +531,12 @@ if __name__ == "__main__":
         # merge trainer cli with config
         trainer_config = lightning_config.get("trainer", OmegaConf.create())
         # default to ddp
-        trainer_config["accelerator"] = "ddp"
+        trainer_config["strategy"] = "ddp"
+
         for k in nondefault_trainer_args(opt):
             trainer_config[k] = getattr(opt, k)
         if not "gpus" in trainer_config:
-            del trainer_config["accelerator"]
+            del trainer_config["strategy"]
             cpu = True
         else:
             gpuinfo = trainer_config["gpus"]
@@ -548,15 +562,15 @@ if __name__ == "__main__":
                     "id": nowname,
                 }
             },
-            "testtube": {
-                "target": "pytorch_lightning.loggers.TestTubeLogger",
+            "tensorboard": {
+                "target": "pytorch_lightning.loggers.TensorBoardLogger",
                 "params": {
-                    "name": "testtube",
+                    "name": "tensorboard",
                     "save_dir": logdir,
                 }
             },
         }
-        default_logger_cfg = default_logger_cfgs["testtube"]
+        default_logger_cfg = default_logger_cfgs[opt.logtype]
         if "logger" in lightning_config:
             logger_cfg = lightning_config.logger
         else:
@@ -618,9 +632,9 @@ if __name__ == "__main__":
                     # "log_momentum": True
                 }
             },
-            "cuda_callback": {
-                "target": "main.CUDACallback"
-            },
+            # "cuda_callback": {
+            #     "target": "main.CUDACallback"
+            # },
         }
         if version.parse(pl.__version__) >= version.parse('1.4.0'):
             default_callbacks_cfg.update({'checkpoint_callback': modelckpt_cfg})

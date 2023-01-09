@@ -190,7 +190,8 @@ class CrossAttention(nn.Module):
 
         out = einsum('b i j, b j d -> b i d', attn, v)
         out = rearrange(out, '(b h) n d -> b n (h d)', h=h)
-        return self.to_out(out)
+
+        return self.to_out(out), attn
 
 
 class BasicTransformerBlock(nn.Module):
@@ -209,10 +210,21 @@ class BasicTransformerBlock(nn.Module):
         return checkpoint(self._forward, (x, context), self.parameters(), self.checkpoint)
 
     def _forward(self, x, context=None):
-        x = self.attn1(self.norm1(x)) + x
-        x = self.attn2(self.norm2(x), context=context) + x
+        # x = self.attn1(self.norm1(x)) + x
+        self_x, self_attn_map = self.attn1(self.norm1(x))
+        x = self_x + x
+
+        # x = self.attn2(self.norm2(x), context=context) + x
+        cross_x, cross_attn_map = self.attn2(self.norm2(x), context=context)
+        x = cross_x + x
+
+        # cross_attn_avg = cross_attn.mean(dim=0).mean(dim=0)
+        # print(cross_attn_avg)
+        # print("cross_attn_map & self_attn_map: ", cross_attn_map.size(), self_attn_map.size())
+
         x = self.ff(self.norm3(x)) + x
-        return x
+
+        return x, cross_attn_map, self_attn_map
 
 
 class SpatialTransformer(nn.Module):
@@ -254,8 +266,16 @@ class SpatialTransformer(nn.Module):
         x = self.norm(x)
         x = self.proj_in(x)
         x = rearrange(x, 'b c h w -> b (h w) c')
+
+        # cross_attn_map_list = []
+        # self_attn_map_list = []
         for block in self.transformer_blocks:
-            x = block(x, context=context)
+            x, cross_attn_map, self_attn_map = block(x, context=context)
+            # cross_attn_map_list.append(cross_attn_map)
+            # self_attn_map_list.append(self_attn_map)
+        
+        # print("length of cross_attn_map_list and self_attn_map_list:", len(cross_attn_map_list), len(self_attn_map_list))
         x = rearrange(x, 'b (h w) c -> b c h w', h=h, w=w)
         x = self.proj_out(x)
-        return x + x_in
+        
+        return x + x_in, cross_attn_map, self_attn_map

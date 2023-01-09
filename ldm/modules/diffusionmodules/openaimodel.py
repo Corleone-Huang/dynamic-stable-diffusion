@@ -20,6 +20,11 @@ from ldm.modules.diffusionmodules.util import (
 from ldm.modules.attention import SpatialTransformer
 
 
+# # plot attention
+# import seaborn as sns
+# import matplotlib.pyplot as plt
+# import pandas as pd
+
 # dummy replace
 def convert_module_to_f16(x):
     pass
@@ -77,14 +82,21 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
     support it as an extra input.
     """
 
-    def forward(self, x, emb, context=None):
+    def forward(self, x, emb, context=None, return_attn=False):
+        cross_attn_map_list = []
+        self_attn_map_list = []
         for layer in self:
             if isinstance(layer, TimestepBlock):
                 x = layer(x, emb)
             elif isinstance(layer, SpatialTransformer):
-                x = layer(x, context)
+                x, cross_attn_map, self_attn_map = layer(x, context)
+                cross_attn_map_list.append(cross_attn_map)
+                self_attn_map_list.append(self_attn_map)
+                # print("size of cross_attn_map and self_attn_map:", cross_attn_map.size(), self_attn_map.size())
             else:
                 x = layer(x)
+        if return_attn:
+            return x, cross_attn_map_list, self_attn_map_list
         return x
 
 
@@ -723,18 +735,47 @@ class UNetModel(nn.Module):
         t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False)
         emb = self.time_embed(t_emb)
 
+        # print("timesteps:", timesteps)
+        # total_cross_attn_map_list = []
+
         if self.num_classes is not None:
             assert y.shape == (x.shape[0],)
             emb = emb + self.label_emb(y)
 
         h = x.type(self.dtype)
         for module in self.input_blocks:
-            h = module(h, emb, context)
+            h, cross_attn_map_list, self_attn_map_list = module(h, emb, context, return_attn=True)
+            # if len(cross_attn_map_list) > 0:
+            #     total_cross_attn_map_list.append(cross_attn_map_list[0].chunk(2)[1].mean(0).mean(0))
+
             hs.append(h)
-        h = self.middle_block(h, emb, context)
+
+        h, cross_attn_map_list, self_attn_map_list = self.middle_block(h, emb, context, return_attn=True)
+        # if len(cross_attn_map_list) > 0:
+        #     total_cross_attn_map_list.append(cross_attn_map_list[0].chunk(2)[1].mean(0).mean(0))
+
         for module in self.output_blocks:
             h = th.cat([h, hs.pop()], dim=1)
-            h = module(h, emb, context)
+            h, cross_attn_map_list, self_attn_map_list = module(h, emb, context, return_attn=True)
+            # if len(cross_attn_map_list) > 0:
+            #     total_cross_attn_map_list.append(cross_attn_map_list[0].chunk(2)[1].mean(0).mean(0))
+        
+        # for i in range(len(total_cross_attn_map_list)):
+        #     if i == 0:
+        #         avg_cross_attn_map = total_cross_attn_map_list[i].unsqueeze(0)
+        #     else:
+        #         avg_cross_attn_map = th.cat([avg_cross_attn_map, total_cross_attn_map_list[i].unsqueeze(0)], dim=0)
+        # avg_cross_attn_map = avg_cross_attn_map.mean(0)
+
+        # for plot attention map
+        # plt.figure(figsize=(20,5))
+        # # plt.rcParams['figure.dpi'] = 80  # 图形分辨率
+        # # pd.options.display.notebook_repr_html = False  # 表格显示
+        # avg_cross_attn_map_np = np.array(avg_cross_attn_map[1:-1].view(5, -1).cpu())  # exclude the first and last token
+        # sns.heatmap(avg_cross_attn_map_np, xticklabels=False, yticklabels=False, vmax=0.04)
+        # plt.savefig("figs/cross_attn_map_step-{}.png".format(timesteps[0].data))
+        # print(avg_cross_attn_map)
+
         h = h.type(x.dtype)
         if self.predict_codebook_ids:
             return self.id_predictor(h)
