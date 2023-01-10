@@ -89,7 +89,7 @@ data:
     train:
       target: ldm.data.coco.CocoTrainValid
       params:
-        root: data/mscoco
+        root: /mnt/data10t/bakuphome20210617/huangmq/git_repo/AdaptiveVectorQuantization/data/coco # data/mscoco
         split: train
         image_resolution: 256 
         transform_type: imagenet_train
@@ -97,7 +97,7 @@ data:
     validation:
       target: ldm.data.coco.CocoTrainValid
       params:
-        root: data/mscoco
+        root: /mnt/data10t/bakuphome20210617/huangmq/git_repo/AdaptiveVectorQuantization/data/coco # data/mscoco
         split: valid
         image_resolution: 256 
         transform_type: imagenet_val
