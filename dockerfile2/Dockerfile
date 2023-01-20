@@ -1,1 +1,0 @@
-FROM registry.cn-hangzhou.aliyuncs.com/ustc_huangmq/dynamic

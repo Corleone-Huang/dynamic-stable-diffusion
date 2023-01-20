@@ -73,9 +73,9 @@ model:
       target: ldm.modules.encoders.modules.FrozenCLIPEmbedder
 
 data:
-  target: main.DataModuleFromConfig
+  target: data.build.DataModuleFromConfig
   params:
-    batch_size: 25
+    batch_size: 2 # 5
     num_workers: 5
     wrap: false
     train:
