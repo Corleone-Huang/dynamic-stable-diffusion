@@ -96,28 +96,6 @@ class CaptionImageLogger(Callback):
                 pl_module.eval()
             with torch.no_grad():
                 images = pl_module.log_images(batch, split=split)
-            
-            # NOTE: 集群的路径总是有bug！！！！！！！！
-            if "groundtruth_captions" in images:
-                # if self.type == "wandb":
-                #     pl_module.logger.log_text(key="samples_{}".format(pl_module.global_step), columns=["{}_groundtruth_captions".format(split)], data=images['groundtruth_captions'])
-                # else:
-                #     pl_module.logger.experiment.add_text("{}_groundtruth_captions".format(split), str(images['groundtruth_captions']), global_step=pl_module.global_step)
-                del images['groundtruth_captions']
-            
-            if "dest_captions" in images:
-                # if self.type == "wandb":
-                #     pl_module.logger.log_text(key="samples_{}".format(pl_module.global_step), columns=["{}_dest_captions".format(split)], data=images['dest_captions'])
-                # else:
-                #     pl_module.logger.experiment.add_text("{}_dest_captions".format(split), str(images['dest_captions']), global_step=pl_module.global_step)
-                del images['dest_captions']
-            
-            if "sample_captions" in images:
-                # if self.type == "wandb":
-                #     pl_module.logger.log_text(key="samples_{}".format(pl_module.global_step), columns=["{}_sample_captions".format(split)], data=images['sample_captions'])
-                # else:
-                #     pl_module.logger.experiment.add_text("{}_sample_captions".format(split), str(images['sample_captions']), global_step=pl_module.global_step)
-                del images['sample_captions']
 
             for k in images:
                 N = min(images[k].shape[0], self.max_images)
