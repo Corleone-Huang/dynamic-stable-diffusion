@@ -227,7 +227,7 @@ if __name__ == "__main__":
     if opt.activate_ddp_share:
         trainer_kwargs["strategy"] = "ddp_sharded"
     else:
-        trainer_kwargs["strategy"] = DDPPlugin(find_unused_parameters=True)
+        trainer_kwargs["strategy"] = DDPPlugin(find_unused_parameters=False)
     # trainer_kwargs["deterministic"] = True  # for reproducible
 
     trainer = Trainer.from_argparse_args(trainer_opt, **trainer_kwargs)

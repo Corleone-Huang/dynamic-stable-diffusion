@@ -342,11 +342,8 @@ class DDPM(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         loss, loss_dict = self.shared_step(batch)
 
-        self.log_dict(loss_dict, prog_bar=True,
-                      logger=True, on_step=True, on_epoch=True)
-
-        # self.log("global_step", self.global_step,
-        #          prog_bar=True, logger=True, on_step=True, on_epoch=False, batch_size=batch_size)
+        self.log_dict(loss_dict, prog_bar=True, logger=True, on_step=True, on_epoch=True)
+        # self.log("global_step", self.global_step, prog_bar=True, logger=True, on_step=True, on_epoch=False, batch_size=batch_size)
 
         if self.use_scheduler:
             lr = self.optimizers().param_groups[0]['lr']
@@ -360,6 +357,8 @@ class DDPM(pl.LightningModule):
         with self.ema_scope():
             _, loss_dict_ema = self.shared_step(batch)
             loss_dict_ema = {key + '_ema': loss_dict_ema[key] for key in loss_dict_ema}
+        # for save checkpoints
+        self.log('val_loss_simple_ema', loss_dict_ema["val/loss_simple_ema"], prog_bar=False, logger=True, on_step=True, on_epoch=True)
         self.log_dict(loss_dict_no_ema, prog_bar=False, logger=True, on_step=False, on_epoch=True)
         self.log_dict(loss_dict_ema, prog_bar=False, logger=True, on_step=False, on_epoch=True)
 
@@ -544,6 +543,8 @@ class LatentDiffusion(DDPM):
             z = encoder_posterior.sample()
         elif isinstance(encoder_posterior, torch.Tensor):
             z = encoder_posterior
+        elif isinstance(encoder_posterior, tuple):
+            z = encoder_posterior[0]
         else:
             raise NotImplementedError(f"encoder_posterior of type '{type(encoder_posterior)}' not yet implemented")
         return self.scale_factor * z
@@ -1027,7 +1028,7 @@ class LatentDiffusion(DDPM):
         loss_simple = self.get_loss(model_output, target, mean=False).mean([1, 2, 3])
         loss_dict.update({f'{prefix}/loss_simple': loss_simple.mean()})
 
-        logvar_t = self.logvar[t].to(self.device)
+        logvar_t = self.logvar[t.cpu()].to(self.device)
         loss = loss_simple / torch.exp(logvar_t) + logvar_t
         # loss = loss_simple / torch.exp(self.logvar) + self.logvar
         if self.learn_logvar:
@@ -1248,9 +1249,9 @@ class LatentDiffusion(DDPM):
 
 
     @torch.no_grad()
-    def log_images(self, batch, N=8, n_row=4, sample=True, ddim_steps=200, ddim_eta=1., return_keys=None,
-                   quantize_denoised=True, inpaint=True, plot_denoise_rows=False, plot_progressive_rows=True,
-                   plot_diffusion_rows=True, **kwargs):
+    def log_images(self, batch, N=16, n_row=4, sample=True, ddim_steps=200, ddim_eta=1., return_keys=None,
+                   quantize_denoised=False, inpaint=False, plot_denoise_rows=False, plot_progressive_rows=False,
+                   plot_diffusion_rows=False, **kwargs):
 
         use_ddim = ddim_steps is not None
 

@@ -220,7 +220,7 @@ if __name__ == "__main__":
     callbacks_cfg = OmegaConf.create()
     callbacks_cfg = OmegaConf.merge(default_callbacks_cfg, callbacks_cfg, modelckpt_cfg)
     trainer_kwargs["callbacks"] = [instantiate_from_config(callbacks_cfg[k]) for k in callbacks_cfg]
-    trainer_kwargs["strategy"] = DDPPlugin(find_unused_parameters=True)
+    trainer_kwargs["strategy"] = DDPPlugin(find_unused_parameters=False)
     # trainer_kwargs["deterministic"] = True  # for reproducible
 
     trainer = Trainer.from_argparse_args(trainer_opt, **trainer_kwargs)

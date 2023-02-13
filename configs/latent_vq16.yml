@@ -1,5 +1,5 @@
 model:
-  base_learning_rate: 1.0e-04 # NOTE: set --scale_lr False
+  learning_rate: 1.0e-04
   target: ldm.models.diffusion.ddpm.LatentDiffusion
   params:
     linear_start: 0.00085
@@ -9,11 +9,11 @@ model:
     timesteps: 1000
     first_stage_key: "image"
     cond_stage_key: "caption"
-    image_size: 16 # 64
-    channels: 16 # 4
+    image_size: 16  # 64
+    channels: 8  # image channel
     cond_stage_trainable: false   # Note: different from the one we trained before
     conditioning_key: crossattn
-    monitor: val/loss_simple_ema
+    monitor: val_loss_simple_ema # val/loss_simple_ema
     scale_factor: 0.18215
     use_ema: True
 
@@ -29,12 +29,12 @@ model:
     unet_config:
       target: ldm.modules.diffusionmodules.openaimodel.UNetModel
       params:
-        image_size: 32 # unused
-        in_channels: 16 # 4
-        out_channels: 16 # 4
-        model_channels: 160 # 320
+        image_size: 16  # unused
+        in_channels: 8  # 
+        out_channels: 8  # 
+        model_channels: 128 # 320
         attention_resolutions: [ 4, 2, 1 ]
-        num_res_blocks: 2
+        num_res_blocks: 1 # 2
         channel_mult: [ 1, 2, 4, 4 ]
         num_heads: 8
         use_spatial_transformer: True
@@ -44,27 +44,21 @@ model:
         legacy: False
 
     first_stage_config:
-      target: ldm.models.autoencoder.AutoencoderKL
+      target: ldm.models.autoencoder.VQModel
       params:
-        ckpt_path: models/first_stage_models/kl-f16/model.ckpt
-        embed_dim: 16
-        monitor: val/rec_loss
+        ckpt_path: models/first_stage_models/vq-f16/model.ckpt
+        embed_dim: 8
+        n_embed: 16384
         ddconfig:
-          double_z: true
-          z_channels: 16
+          double_z: false
+          z_channels: 8
           resolution: 256
           in_channels: 3
           out_ch: 3
           ch: 128
-          ch_mult:
-          - 1
-          - 1
-          - 2
-          - 2
-          - 4
+          ch_mult: [1,1,2,2,4]
           num_res_blocks: 2
-          attn_resolutions:
-          - 16
+          attn_resolutions: [16]
           dropout: 0.0
         lossconfig:
           target: torch.nn.Identity
@@ -75,7 +69,7 @@ model:
 data:
   target: data.build.DataModuleFromConfig
   params:
-    batch_size: 25
+    batch_size: 240
     num_workers: 5
     wrap: false
     train:
@@ -101,8 +95,8 @@ lightning:
     image_logger:
       target: main.ImageLogger
       params:
-        batch_frequency: 1000
-        max_images: 4
+        batch_frequency: 2000
+        max_images: 16
         increase_log_steps: False
         log_first_step: False
 
