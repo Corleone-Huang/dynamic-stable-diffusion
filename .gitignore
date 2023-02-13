@@ -6,4 +6,6 @@
 /outputs/
 /assets/
 
+/models/first_stage_models
+
 *.ckpt
