@@ -7,5 +7,6 @@
 /assets/
 
 /models/first_stage_models
+/metrics/assets
 
 *.ckpt
